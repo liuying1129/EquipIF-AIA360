@@ -301,14 +301,20 @@ object frmMain: TfrmMain
     FlowControl.XonXoffOut = False
     FlowControl.XonXoffIn = False
     StoredProps = [SpBasic]
-    TriggersOnRxChar = True
+    TriggersOnRxChar = False
     OnAfterOpen = ComPort1AfterOpen
-    OnRxChar = ComPort1RxChar
     Left = 72
     Top = 104
   end
   object SaveDialog1: TSaveDialog
     Left = 272
     Top = 26
+  end
+  object ComDataPacket1: TComDataPacket
+    ComPort = ComPort1
+    IncludeStrings = True
+    OnPacket = ComDataPacket1Packet
+    Left = 104
+    Top = 104
   end
 end

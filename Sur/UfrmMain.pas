@@ -33,6 +33,7 @@ type
     OpenDialog1: TOpenDialog;
     ComPort1: TComPort;
     SaveDialog1: TSaveDialog;
+    ComDataPacket1: TComDataPacket;
     procedure N3Click(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
@@ -45,7 +46,7 @@ type
     procedure Button1Click(Sender: TObject);
     procedure ToolButton5Click(Sender: TObject);
     procedure ComPort1AfterOpen(Sender: TObject);
-    procedure ComPort1RxChar(Sender: TObject; Count: Integer);
+    procedure ComDataPacket1Packet(Sender: TObject; const Str: String);
   private
     { Private declarations }
     procedure WMSyscommand(var message:TWMMouse);message WM_SYSCOMMAND;
@@ -152,6 +153,9 @@ var
   ctext        :string;
   reg          :tregistry;
 begin
+  ComDataPacket1.StartString:='SampleID=,';
+  ComDataPacket1.StopString:=#$D#$A;
+
   ConnectString:=GetConnectString;
   
   UpdateConfig;
@@ -396,7 +400,7 @@ begin
   //ls.LoadFromFile(OpenDialog1.FileName);
   //rfm:=ls.Text;
   //RFM:='001  000000000000000000  032 4.95 143.0 112.5 0.00 0.00   0.0'+#$D#$A+'002  000000000000000000  032 5.11 153.0 117.4 0.00 0.00   0.0'+#$D#$A;
-  ComPort1RxChar(nil,0);
+  //ComPort1RxChar(nil,0);
   //ls.Free;
 end;
 
@@ -439,15 +443,13 @@ begin
   s:=vSourStr;
 end;
 
-procedure TfrmMain.ComPort1RxChar(Sender: TObject; Count: Integer);
+procedure TfrmMain.ComDataPacket1Packet(Sender: TObject;
+  const Str: String);
 var
-  str:string;
-  ls:TStrings;
-  i:integer;
   SpecNo:string;
   ReceiveItemInfo:OleVariant;
   FInts:OleVariant;
-  
+
   PosSampleID,PosAnalyte,PosConc:integer;
   iSampleID,iAnalyte,iConc:integer;
   sSampleID,sAnalyte,sConc:string;
@@ -455,49 +457,37 @@ var
   dlttype:string;
   sValue:string;
 begin
-  str:='';
-  comport1.ReadStr(str,count);
-  //Str:='SampleID=, SAMPLE2         , Analyte=, #TSH , Conc=, 1.272, Unit=, uIU/ml    , Position=, 5, TestNumber=, 1, Rate=, 2.386986, Flag=,   ,Date=, 18/12/04 11:38'+#$D#$A+
-  //     'SampleID=, SAMPLE1         , Analyte=, #TT3 , Conc=, 1.58, Unit=, ng/ml     , Position=, 1, TestNumber=, 1, Rate=, 13.393683, Flag=,   ,Date=, 18/12/14 11:05'+#$D#$A;
-  
   if length(memo1.Lines.Text)>=60000 then memo1.Lines.Clear;//memo只能接受64K个字符
-  memo1.Lines.Add(str);
+  memo1.Lines.Add(Str);
 
-  ls:=TStringList.Create;
-  ExtractStrings([#$D,#$A],[],Pchar(Str),ls);//将每行导入到字符串列表中
+  PosSampleID:=Pos('SampleID=,',Str);
+  sSampleID:=copy(Str,PosSampleID+10,MaxInt);
+  iSampleID:=Pos(',',sSampleID);
+  SpecNo:=rightstr('0000'+trim(leftstr(sSampleID,iSampleID-1)),4);
 
-  for i :=0 to ls.Count-1 do
+  PosAnalyte:=Pos('Analyte=,',Str);
+  sAnalyte:=copy(Str,PosAnalyte+9,MaxInt);
+  iAnalyte:=Pos(',',sAnalyte);
+  dlttype:=trim(leftstr(sAnalyte,iAnalyte-1));
+
+  PosConc:=Pos('Conc=,',Str);
+  sConc:=copy(Str,PosConc+6,MaxInt);
+  iConc:=Pos(',',sConc);
+  sValue:=trim(leftstr(sConc,iConc-1));
+
+  ReceiveItemInfo:=VarArrayCreate([0,0],varVariant);
+  ReceiveItemInfo[0]:=VarArrayof([dlttype,sValue,'','']);
+
+  if bRegister then
   begin
-    PosSampleID:=Pos('SampleID=,',ls[i]);
-    sSampleID:=copy(ls[i],PosSampleID+10,MaxInt);
-    iSampleID:=Pos(',',sSampleID);
-    SpecNo:=rightstr('0000'+trim(leftstr(sSampleID,iSampleID-1)),4);
-
-    PosAnalyte:=Pos('Analyte=,',ls[i]);
-    sAnalyte:=copy(ls[i],PosAnalyte+9,MaxInt);
-    iAnalyte:=Pos(',',sAnalyte);
-    dlttype:=trim(leftstr(sAnalyte,iAnalyte-1));
-
-    PosConc:=Pos('Conc=,',ls[i]);
-    sConc:=copy(ls[i],PosConc+6,MaxInt);
-    iConc:=Pos(',',sConc);
-    sValue:=trim(leftstr(sConc,iConc-1));
-
-    ReceiveItemInfo:=VarArrayCreate([0,0],varVariant);
-    ReceiveItemInfo[0]:=VarArrayof([dlttype,sValue,'','']);
-
-    if bRegister then
-    begin
-      FInts :=CreateOleObject('Data2LisSvr.Data2Lis');
-      FInts.fData2Lis(ReceiveItemInfo,(SpecNo),'',
-        (GroupName),(SpecType),(SpecStatus),(EquipChar),
-        (CombinID),'',(LisFormCaption),(ConnectString),
-        (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
-        ifRecLog,true,'常规');
-      if not VarIsEmpty(FInts) then FInts:= unAssigned;
-    end;
-  end;  
-  ls.Free;
+    FInts :=CreateOleObject('Data2LisSvr.Data2Lis');
+    FInts.fData2Lis(ReceiveItemInfo,(SpecNo),'',
+      (GroupName),(SpecType),(SpecStatus),(EquipChar),
+      (CombinID),'',(LisFormCaption),(ConnectString),
+      (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
+      ifRecLog,true,'常规');
+    if not VarIsEmpty(FInts) then FInts:= unAssigned;
+  end;
 end;
 
 initialization
