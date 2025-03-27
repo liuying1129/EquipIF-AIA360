@@ -1,3 +1,0 @@
-SampleID=, SAMPLE2         , Analyte=, #TSH , Conc=, 1.272, Unit=, uIU/ml    , Position=, 5, TestNumber=, 1, Rate=, 2.386986, Flag=,   ,Date=, 18/12/04 11:38
-SampleID=, SAMPLE1         , Analyte=, #TT3 , Conc=, 1.58, Unit=, ng/ml     , Position=, 1, TestNumber=, 1, Rate=, 13.393683, Flag=,   ,Date=, 18/12/14 11:05
-
